@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>BFHL API</title>
+</head>
+<body>
+
+<h2>Enter Nodes</h2>
+<textarea id="input" rows="5" cols="40">["A->B","A->C"]</textarea>
+<br><br>
+<button onclick="sendData()">Submit</button>
+
+<pre id="output"></pre>
+
+<script>
+function sendData() {
+    const data = JSON.parse(document.getElementById("input").value);
+
+    fetch("http://localhost:3000/bfhl", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ data })
+    })
+    .then(res => res.json())
+    .then(res => {
+        document.getElementById("output").innerText = JSON.stringify(res, null, 2);
+    })
+    .catch(err => alert("Error"));
+}
+</script>
+
+</body>
+</html>
