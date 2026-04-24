@@ -8,13 +8,18 @@ app.use(express.json());
 app.post("/bfhl", (req, res) => {
     const data = req.body.data;
 
+    // ✅ Input validation
+    if (!data || !Array.isArray(data)) {
+        return res.status(400).json({ error: "Invalid input format" });
+    }
+
     let validEdges = [];
     let invalid_entries = [];
     let duplicate_edges = [];
 
     const seen = new Set();
 
-    // ✅ Validate
+    // ✅ Validate edges
     data.forEach(item => {
         let edge = item.trim();
 
@@ -37,25 +42,36 @@ app.post("/bfhl", (req, res) => {
     let childrenSet = new Set();
 
     validEdges.forEach(edge => {
-        let [p, c] = edge.split("->");
+        let [parent, child] = edge.split("->");
 
-        if (!graph[p]) graph[p] = [];
-        graph[p].push(c);
+        if (!graph[parent]) graph[parent] = [];
 
-        childrenSet.add(c);
+        // Handle multi-parent (first wins)
+        if (!childrenSet.has(child)) {
+            graph[parent].push(child);
+            childrenSet.add(child);
+        }
     });
 
     // ✅ Find roots
     let roots = Object.keys(graph).filter(node => !childrenSet.has(node));
 
+    // If no root (cycle case)
     if (roots.length === 0 && validEdges.length > 0) {
-        roots.push([...new Set(validEdges.join('').split(''))].sort()[0]);
+        const nodes = new Set();
+        validEdges.forEach(edge => {
+            let [p, c] = edge.split("->");
+            nodes.add(p);
+            nodes.add(c);
+        });
+        roots.push([...nodes].sort()[0]);
     }
 
     let hierarchies = [];
     let total_trees = 0;
     let total_cycles = 0;
 
+    // ✅ Build tree + detect cycle
     function buildTree(node, visited = new Set()) {
         if (visited.has(node)) {
             return { cycle: true };
@@ -66,18 +82,19 @@ app.post("/bfhl", (req, res) => {
         let tree = {};
         let maxDepth = 1;
 
+        tree[node] = {};
+
         if (graph[node]) {
-            tree[node] = {};
             for (let child of graph[node]) {
-                let res = buildTree(child, new Set(visited));
+                let result = buildTree(child, new Set(visited));
 
-                if (res.cycle) return { cycle: true };
+                if (result.cycle) {
+                    return { cycle: true };
+                }
 
-                tree[node][child] = res.tree[child];
-                maxDepth = Math.max(maxDepth, 1 + res.depth);
+                tree[node][child] = result.tree[child];
+                maxDepth = Math.max(maxDepth, 1 + result.depth);
             }
-        } else {
-            tree[node] = {};
         }
 
         return { tree, depth: maxDepth };
@@ -106,7 +123,7 @@ app.post("/bfhl", (req, res) => {
 
             if (
                 result.depth > maxDepthGlobal ||
-                (result.depth === maxDepthGlobal && root < largest_tree_root)
+                (result.depth === maxDepthGlobal && (largest_tree_root === "" || root < largest_tree_root))
             ) {
                 maxDepthGlobal = result.depth;
                 largest_tree_root = root;
@@ -129,4 +146,8 @@ app.post("/bfhl", (req, res) => {
     });
 });
 
-app.listen(3000, () => console.log("Server running on port 3000"));
+// ✅ IMPORTANT for Render
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+});
